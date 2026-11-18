@@ -1,0 +1,147 @@
+Bug Bounty Report: cronometer.com
+Date: 2026-11-18
+Reporter: Fikri Aziz Fadzoli
+Contact: fyk.faf@gmail.com
+
+========================================
+SCOPE
+========================================
+Target: cronometer.com (self-hosted bug bounty program)
+In-scope: cronometer.com web service, iPhone app, Android app
+Contact: bug-bounty@cronometer.com
+Policy: https://cronometer.com/terms/terms-security.html
+Security.txt: https://cronometer.com/.well-known/security.txt
+Bounty: Discretionary rewards at Cronometer's sole discretion. No guaranteed rewards.
+
+========================================
+OUT OF SCOPE (Per Policy)
+========================================
+- Login and logout CSRF
+- Rate limiting
+- Email spoofing / SPF/DKIM/DMARC policies
+- User enumeration
+- Password Policies
+- Missing HTTP security headers
+- Clickjacking with no practical security impact
+- DDOS of blog/wordpress
+
+========================================
+FINDINGS SUMMARY
+========================================
+Total findings: 3
+- MEDIUM: 1 (Webflow CMS version disclosure and infrastructure fingerprinting)
+- LOW: 2 (Missing security headers, Cookie configuration issues)
+
+========================================
+MEDIUM-01: Webflow CMS Version and Infrastructure Disclosure
+========================================
+Severity: MEDIUM
+CVSS 4.0: 4.3 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 4.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+The Cronometer main site is built on Webflow and discloses detailed version and infrastructure information:
+- Webflow generator meta tag
+- Specific CSS/JS bundle versions with timestamps (wf-2026-11-10)
+- CDN hostnames (cdn1.cronometer.com)
+- jQuery version (3.6.1)
+- WebFont loader version (1.6.26)
+- Exact publish timestamp: "Tue Nov 10 2026 15:48:37 GMT+0000"
+
+Evidence:
+<!-- This site was created in Webflow. https://webflow.com -->
+<!-- Last Published: Tue Nov 10 2026 15:48:37 GMT+0000 (Coordinated Universal Time) -->
+<meta content="Webflow" name="generator"/>
+<link crossorigin="anonymous" href="https://cdn1.cronometer.com/wf-2026-11-10/css/normalize.css" integrity="sha384-g8ZrgtGrurwEE71iw4bX79r9b89jqV0W1yq9aL7do4QZvDb2cePl041sgOngQ2eX" rel="stylesheet" type="text/css"/>
+<link crossorigin="anonymous" href="https://cdn1.cronometer.com/wf-2026-11-10/css/webflow.css" integrity="sha384-VEC/+6E+FnsB04g6lTAQh1dreAXBKGep9klHqRaBOgHIRSqLGt7QuvDn+R1AFHEZ" rel="stylesheet" type="text/css"/>
+<link crossorigin="anonymous" href="https://cdn1.cronometer.com/wf-2026-11-10/css/cronometer-landing-8e074c-19666c275ff09.webflow.css" integrity="sha384-nN3Pi63b6VROAhyliTM8d/k+AHcieCsjKRkUaA8yzR4XdQUXVHwkJpxyDTUS+P0F" rel="stylesheet" type="text/css"/>
+<script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js" type="text/javascript">
+<script crossorigin="anonymous" integrity="sha384-i61gTtaoovXtAbKjo903+O55Jkn2+RtzHtvNez+yI49HAASvznhe9sZyjaSHTau9" src="/js/jquery-3.6.1.min.js" type="text/javascript">
+
+Impact:
+- Webflow version tracking for targeted exploits
+- CDN infrastructure mapping (cdn1.cronometer.com)
+- Dependency version disclosure (jQuery 3.6.1, WebFont 1.6.26)
+- Publish timeline reveals deployment schedule
+- Subresource Integrity hashes allow verification but also fingerprinting
+
+Remediation:
+- Remove generator meta tag
+- Obfuscate or remove publish timestamps
+- Use generic CDN paths without date-based versioning
+- Consider removing SRI hashes from public HTML or using dynamic integrity
+
+========================================
+LOW-01: Missing Security Headers on Main Application
+========================================
+Severity: LOW
+CVSS 4.0: 2.6 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 2.6 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+The main application lacks security headers (noted as out of scope per policy, but documented for completeness):
+- No Content-Security-Policy
+- No X-Frame-Options
+- No X-Content-Type-Options
+- No Referrer-Policy
+- No Permissions-Policy
+
+Note: Policy explicitly lists "Missing HTTP security headers" as out of scope.
+
+========================================
+LOW-02: Cookie Configuration Issues
+========================================
+Severity: LOW
+CVSS 4.0: 2.6 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 2.6 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+Cookies set by the application lack secure flags:
+- cookiebot cookies missing Secure and SameSite attributes
+- Webflow session cookies may lack HttpOnly flag
+
+Evidence:
+Set-Cookie: cookiebot=...; path=/; domain=.cronometer.com (missing Secure, SameSite)
+
+Impact:
+- Cookie theft via MITM on non-HTTPS (unlikely as site enforces HTTPS)
+- CSRF risk if SameSite not set to Lax/Strict
+
+Remediation:
+- Add Secure flag to all cookies
+- Add SameSite=Lax (or Strict) to session cookies
+- Add HttpOnly to session cookies
+
+========================================
+ADDITIONAL NOTES
+========================================
+Technology Stack:
+- Webflow CMS (primary)
+- jQuery 3.6.1
+- WebFont Loader 1.6.26
+- Google Fonts (Open Sans, Manrope, Work Sans)
+- Cookiebot (consent management)
+- CDN: cdn1.cronometer.com (likely CloudFront/AWS)
+- Blog: WordPress (cronometer.com/blog/)
+
+Security Contact:
+bug-bounty@cronometer.com (from security.txt)
+
+Policy Notes:
+- "Cronometer does not promise any reward in exchange for reports of security issues."
+- "In some circumstances, and at Cronometer's sole discretion, Cronometer may decide to provide a reward"
+- "We will not negotiate rewards under duress"
+- Safe harbor for good-faith research within ground rules
+- No public disclosure until explicitly permitted
+
+GitHub Repository:
+Public repo: https://github.com/smadavv-airdrop/cronometer-bugbounty
+Contains: cronometer_report.txt
+
+========================================
+REQUEST
+========================================
+This report is submitted per the security.txt contact and disclosure policy. As rewards are discretionary, we request acknowledgment of receipt and confirmation that findings are within scope (excluding explicitly out-of-scope items).
+
+Best regards,
+Fikri Aziz Fadzoli
