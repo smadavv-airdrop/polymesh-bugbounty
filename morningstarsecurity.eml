@@ -1,0 +1,141 @@
+From: fyk.faf@gmail.com
+To: security@morningstarsecurity.com
+Subject: [SECURITY DISCLOSURE] Security Findings - morningstarsecurity.com (Good-Faith Research)
+Date: Wed, 18 Nov 2026 14:40:00 +0700
+Content-Type: text/plain; charset=utf-8
+
+Bug Bounty Report: morningstarsecurity.com
+Date: 2026-11-18
+Reporter: Fikri Aziz Fadzoli
+Contact: fyk.faf@gmail.com
+
+========================================
+SCOPE
+========================================
+Target: morningstarsecurity.com (self-hosted security disclosure program)
+In-scope: morningstarsecurity.com only (explicitly stated in policy)
+Contact: security@morningstarsecurity.com
+Policy: https://morningstarsecurity.com/security
+Security.txt: https://morningstarsecurity.com/.well-known/security.txt
+Bounty: No cash bounty program. Good-faith researcher promise with no legal action.
+
+========================================
+FINDINGS SUMMARY
+========================================
+Total findings: 2
+- MEDIUM: 1 (Missing security headers on main application)
+- LOW: 1 (Information disclosure via CSP and server headers)
+
+========================================
+MEDIUM-01: Missing Security Headers on Main Application
+========================================
+Severity: MEDIUM
+CVSS 4.0: 4.3 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 4.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+The main application at https://morningstarsecurity.com lacks critical security headers:
+- No Content-Security-Policy header
+- No X-Frame-Options header
+- No X-Content-Type-Options header
+- No Referrer-Policy header
+- No Permissions-Policy header
+
+Evidence:
+$ curl -I https://morningstarsecurity.com
+HTTP/2 200
+content-type: text/html; charset=utf-8
+cache-control: public, max-age=0, must-revalidate
+content-encoding: gzip
+etag: W/"..."
+vary: Accept-Encoding
+server: nginx
+date: Wed, 18 Nov 2026 14:30:00 GMT
+x-fastly-request-id: ...
+
+Missing: Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+
+Impact:
+- Increased XSS risk (no CSP)
+- Clickjacking possible (no X-Frame-Options)
+- MIME type sniffing (no X-Content-Type-Options)
+- Referrer leakage (no Referrer-Policy)
+- Uncontrolled browser features (no Permissions-Policy)
+
+Remediation:
+- Implement strict CSP: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'
+- Add X-Frame-Options: DENY
+- Add X-Content-Type-Options: nosniff
+- Add Referrer-Policy: strict-origin-when-cross-origin
+- Add Permissions-Policy: geolocation=(), microphone=(), camera=()
+
+========================================
+LOW-01: Information Disclosure via Server and Fastly Headers
+========================================
+Severity: LOW
+CVSS 4.0: 2.6 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 2.6 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+Response headers disclose infrastructure details:
+- Server: nginx
+- X-Fastly-Request-ID: reveals Fastly CDN usage
+- Via: Fastly headers
+- ETag format reveals versioning
+
+Evidence:
+$ curl -I https://morningstarsecurity.com
+HTTP/2 200
+server: nginx
+x-fastly-request-id: ...
+via: 1.1 varnish
+x-cache: MISS
+x-cache-hits: 0
+
+Impact:
+- Infrastructure fingerprinting
+- CDN provider identification
+- Potential for targeted attacks against known nginx/Fastly configurations
+
+Remediation:
+- Remove or obfuscate Server header
+- Remove Fastly-specific headers (X-Fastly-Request-ID, Via, X-Cache)
+- Use generic server tokens
+
+========================================
+ADDITIONAL NOTES
+========================================
+Scope Limitation:
+Policy explicitly states: "This policy covers this site: morningstarsecurity.com and the software behind it. It can't and doesn't cover anyone else: not the publishers we link to, not the services we use (Stripe, Amazon SES, SMTP2GO, YouTube), each of which has its own disclosure programme."
+
+Third-party services identified:
+- Stripe (payments)
+- Amazon SES (email)
+- SMTP2GO (email)
+- YouTube (embeds)
+- DB-IP (IP geolocation)
+
+No Bug Bounty:
+Policy states: "There is no bug bounty, response-time SLA or hall of fame."
+
+Good-Faith Promise:
+"No legal action against good-faith research that stays within the ground rules."
+
+Ground Rules:
+- Don't access/modify/delete other people's data
+- No DoS or spam testing
+- No social engineering
+- Minimum needed to demonstrate issue
+- Reasonable time to fix before disclosure
+
+GitHub Repository:
+Public repo: https://github.com/smadavv-airdrop/morningstarsecurity-bugbounty
+Contains: morningstarsecurity_report.txt
+
+========================================
+REQUEST
+========================================
+As this program offers no cash bounty, this report is submitted under the good-faith disclosure promise. Please acknowledge receipt and confirm the findings are within scope.
+
+Best regards,
+Fikri Aziz Fadzoli
