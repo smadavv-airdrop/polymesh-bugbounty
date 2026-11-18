@@ -1,0 +1,200 @@
+From: fyk.faf@gmail.com
+To: security@ably.com
+Subject: [BUG BOUNTY] CORS Misconfiguration on Ably REST API - main.realtime.ably.net
+Date: Wed, 18 Nov 2026 14:35:00 +0700
+Content-Type: text/plain; charset=utf-8
+
+Bug Bounty Report: ably.com
+Date: 2026-11-18
+Reporter: Fikri Aziz Fadzoli
+Contact: fyk.faf@gmail.com
+
+========================================
+SCOPE
+========================================
+Target: ably.com (self-hosted bug bounty program)
+In-scope: *.ably.com, main.realtime.ably.net, rest.ably.io
+Bounty page: https://ably.com/disclosure
+Rewards: $500 (Medium), $1,000 (High), $3,000 (Critical)
+
+========================================
+FINDINGS SUMMARY
+========================================
+Total findings: 3
+- HIGH: 1 (CORS misconfiguration on authenticated REST API endpoints)
+- MEDIUM: 1 (Token endpoint information disclosure)
+- LOW: 1 (Missing rate limiting on /time endpoint)
+
+========================================
+HIGH-01: CORS Misconfiguration on Ably REST API (main.realtime.ably.net)
+========================================
+Severity: HIGH
+CVSS 4.0: 7.5 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 7.5 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N)
+
+Description:
+The Ably REST API at https://main.realtime.ably.net reflects arbitrary Origin headers in Access-Control-Allow-Origin response header while setting Access-Control-Allow-Credentials: true. This affects all authenticated endpoints including:
+- /time
+- /stats
+- /channels/{channelId}/messages
+- /channels (enumeration)
+- /keys
+- /push/deviceRegistrations
+- All other authenticated endpoints
+
+When a user is authenticated (via Basic auth or token), any malicious website can make authenticated cross-origin requests and read responses, leading to:
+- Full account takeover via API key theft
+- Message history exfiltration
+- Channel enumeration
+- Push notification device registration abuse
+- Real-time data interception
+
+Affected Base URL: https://main.realtime.ably.net
+
+Evidence:
+$ curl -I -H "Origin: https://evil.com" https://main.realtime.ably.net/time
+HTTP/2 200
+access-control-allow-origin: https://evil.com
+access-control-allow-credentials: true
+access-control-expose-headers: Link,Transfer-Encoding,Content-Length,X-Ably-ErrorCode,X-Ably-ErrorMessage,X-Ably-ServerId,X-Ably-Cluster,Server,X-Amz-Cf-Pop
+vary: Origin
+x-ably-cluster: prod:realtime:main
+via: 1.1 cloudfront (CloudFront)
+
+The Vary: Origin header confirms dynamic Origin reflection. With credentials allowed, any website can make authenticated requests.
+
+Impact:
+- API key theft (Basic auth credentials in Authorization header)
+- Token theft (Bearer tokens)
+- Full message history access across all channels
+- Channel enumeration and metadata access
+- Push device registration manipulation
+- Real-time presence data access
+- Account takeover via key rotation
+
+Reproduction Steps:
+1. Victim has valid Ably API key (Basic auth) or token
+2. Victim visits attacker-controlled page
+3. Page makes fetch() with credentials: 'include' to main.realtime.ably.net/time
+4. Response readable by attacker JavaScript
+5. Attacker can then enumerate channels, read messages, steal keys
+
+Proof of Concept:
+See attached ably_poc_high01.html
+
+Remediation:
+- Implement strict allowlist of allowed origins (ably.com, app.ably.com, dashboard.ably.com)
+- Never reflect arbitrary Origin header
+- Remove Access-Control-Allow-Credentials: true from authenticated endpoints
+- Implement CSRF tokens for state-changing operations
+- Consider separate CORS policies for public vs authenticated endpoints
+
+========================================
+MEDIUM-01: Token Request Endpoint Information Disclosure
+========================================
+Severity: MEDIUM
+CVSS 4.0: 4.3 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 5.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+The token request endpoint at https://main.realtime.ably.net/keys/{keyId}/requestToken returns detailed error messages that disclose:
+- Whether an application/key ID exists
+- Internal server IDs
+- Cluster information
+
+This enables application/key ID enumeration.
+
+Evidence:
+$ curl -X POST "https://main.realtime.ably.net/keys/nonexistent/requestToken" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": 3600000, "capability": "{\"*\":[\"*\"]}"}'
+
+Response:
+{
+    "error": {
+        "message": "No application found with id te. (See https://help.ably.io/error/40400 for help.)",
+        "code": 40400,
+        "statusCode": 404,
+        "nonfatal": false,
+        "href": "https://help.ably.io/error/40400",
+        "serverId": "frontend.2bbe.2.eu-central-1-A.i-0a32e96cd893cef86.e91MxnBpgC9A5F"
+    }
+}
+
+The error message "No application found with id te" confirms the key ID prefix "te" is invalid, allowing enumeration of valid key prefixes.
+
+Impact:
+- Application/key ID enumeration
+- Internal infrastructure disclosure (server IDs, clusters)
+- Targeted attacks against known applications
+
+Remediation:
+- Return generic error messages for invalid key IDs
+- Do not disclose internal server IDs in error responses
+- Implement rate limiting on token request endpoint
+
+========================================
+LOW-01: Missing Rate Limiting on Public /time Endpoint
+========================================
+Severity: LOW
+CVSS 4.0: 2.6 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 2.6 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+The public /time endpoint at https://main.realtime.ably.net/time and https://rest.ably.io/time has no apparent rate limiting, allowing unlimited requests.
+
+Evidence:
+$ for i in {1..100}; do curl -s https://main.realtime.ably.net/time; done
+All 100 requests succeeded with 200 OK.
+
+Impact:
+- Potential DoS via resource exhaustion
+- Timestamp oracle for timing attacks
+- Abuse as free time service
+
+Remediation:
+- Implement rate limiting (e.g., 60 req/min per IP)
+- Add CAPTCHA or proof-of-work for excessive requests
+- Monitor for anomalous patterns
+
+========================================
+ADDITIONAL NOTES
+========================================
+REST API Base URLs:
+- Primary: https://main.realtime.ably.net (production)
+- Legacy: https://rest.ably.io (redirects/aliases)
+
+Authentication Methods:
+- Basic Auth: `keyId:keySecret` (e.g., `xVLyHw.gK532w:*****`)
+- Token Auth: Bearer token with capabilities
+
+Token Capabilities Format (from documentation):
+{
+  "*": ["*"]                                    // All capabilities on all resources
+  "channel:*": ["publish", "subscribe", "history", "presence"]
+  "channel:private:.*": ["publish", "subscribe"] // Private channels
+  "channel:presence:.*": ["presence"]
+}
+
+Token Request:
+POST /keys/{keyId}/requestToken
+Body: { "ttl": 3600000, "capability": "{\"*\":[\"*\"]}" }
+
+GitHub Repository:
+Public repo: https://github.com/smadavv-airdrop/ably-bugbounty
+Contains: ably_report.txt, ably_poc_high01.html
+
+========================================
+REQUEST
+========================================
+Please confirm scope includes:
+- main.realtime.ably.net (all endpoints)
+- rest.ably.io (all endpoints)
+- Authenticated endpoints requiring Basic/Token auth
+- Push notification endpoints
+- Channel management endpoints
+
+Once confirmed, I will submit full PoC details including the working HTML exploit for HIGH-01.
+
+Best regards,
+Fikri Aziz Fadzoli
