@@ -1,0 +1,3 @@
+http://control.morningstarsecurity.com [200] [drift] [Caddy]
+https://analytics.morningstarsecurity.com [200] [Plausible · Simple, privacy-friendly alternative to Google Analytics] [Cowboy,Erlang,HTTP/3]
+https://www.morningstarsecurity.com [200] [MorningStar Security · Early access] [HSTS,HTTP/3]

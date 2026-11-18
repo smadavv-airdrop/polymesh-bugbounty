@@ -1,0 +1,6 @@
+https://api.persistentcompute.ai [404]
+https://api.staging.persistentcompute.ai [404]
+https://www.persistentcompute.ai [308] [Cloudflare,HTTP/3]
+https://crm.persistentcompute.ai [200] [Sign in] [Cloudflare,HSTS,HTTP/3]
+https://admin.persistentcompute.ai [200] [Sign in] [Amazon S3,Amazon Web Services,Cloudflare,HSTS,HTTP/3]
+https://staging.persistentcompute.ai [200] [Persistent Compute] [Cloudflare,HSTS,HTTP/3,Next.js,Node.js,React,Webpack]

@@ -1,0 +1,8 @@
+www.cmdash.com
+api.cmdash.com
+app.cmdash.com
+status.cmdash.com
+admin.cmdash.com
+license.cmdash.com
+demo.cmdash.com
+policies.cmdash.com

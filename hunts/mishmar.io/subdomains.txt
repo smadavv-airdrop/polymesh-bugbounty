@@ -1,0 +1,9 @@
+docs.mishmar.io
+mcp.mishmar.io
+mcp.testnet.mishmar.io
+api.testnet.mishmar.io
+app.mishmar.io
+app.testnet.mishmar.io
+www.mishmar.io
+api.mishmar.io
+demo.mishmar.io

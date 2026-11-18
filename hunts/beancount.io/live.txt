@@ -1,0 +1,8 @@
+https://v2.beancount.io [301] [301 Moved Permanently] [Cloudflare]
+https://www.beancount.io [403] [Cloudflare,HTTP/3]
+https://git.beancount.io [401] [Basic,Caddy,HTTP/3]
+https://api.v3.beancount.io [404] [HTTP/3]
+https://dashboard.v3.beancount.io [307] [HTTP/3]
+http://forum.beancount.io [308] [Caddy]
+https://fava-internal-https.beancount.io [503] [Service Suspended] [Cloudflare,HTTP/3]
+https://status.beancount.io [200] [Beancount.io Status | Status Page] [Cloudflare,HTTP/3,Next.js,Node.js,React,Webpack]

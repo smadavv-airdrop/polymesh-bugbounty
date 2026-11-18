@@ -1,0 +1,8 @@
+https://api.cmdash.com [404] [HSTS,HTTP/3]
+https://demo.cmdash.com [307] [Amazon ALB,Amazon Web Services]
+https://app.cmdash.com [307] [Amazon ALB,Amazon Web Services]
+https://admin.cmdash.com [403] [Amazon ALB,Amazon Web Services,Caddy]
+https://status.cmdash.com [200] [CMDash status] [Amazon CloudFront,Amazon S3,Amazon Web Services,HSTS,HTTP/3]
+https://license.cmdash.com [404] [HTTP/3]
+https://policies.cmdash.com [404] [Page not found] [Amazon ALB,Amazon Web Services,HSTS]
+https://www.cmdash.com [200] [CMDash: The security and compliance dashboard for small and mid-size organizations] [Amazon ALB,Amazon Web Services,HSTS]

@@ -1,0 +1,6 @@
+api.persistentcompute.ai
+api.staging.persistentcompute.ai
+staging.persistentcompute.ai
+crm.persistentcompute.ai
+admin.persistentcompute.ai
+www.persistentcompute.ai
