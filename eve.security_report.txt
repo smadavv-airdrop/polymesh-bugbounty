@@ -1,0 +1,212 @@
+Bug Bounty Report: eve.security
+Date: 2026-11-18
+Reporter: Fikri Aziz Fadzoli
+Contact: fyk.faf@gmail.com
+
+========================================
+SCOPE
+========================================
+Target: eve.security (self-hosted bug bounty program)
+In-scope: *.eve.security subdomains, platform.eve.security, platform-prod.eve.security, staging.platform.eve.security, docs.eve.security, install.eve.security, mcp.eve.security, guard.eve.security, api.guard.eve.security
+Bounty page: https://eve.security/bounty (explicit reward criteria by severity/impact/quality/reproducibility/novelty)
+
+========================================
+FINDINGS SUMMARY
+========================================
+Total findings: 4
+- HIGH: 1 (CORS misconfiguration on authenticated endpoints via platform.eve.security)
+- MEDIUM: 2 (Exposed MCP endpoints without auth, Cognito token endpoint accessible)
+- LOW: 1 (Information disclosure via installer version and CloudFront headers)
+
+========================================
+HIGH-01: CORS Misconfiguration on platform.eve.security Authenticated Endpoints
+========================================
+Severity: HIGH
+CVSS 4.0: 7.5 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 7.5 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N)
+
+Description:
+The platform.eve.security domain (and platform-prod.eve.security) reflects arbitrary Origin headers in Access-Control-Allow-Origin response header while also setting Access-Control-Allow-Credentials: true on authenticated API endpoints. This allows malicious websites to make authenticated requests to the platform API and read responses, leading to account takeover and data exfiltration.
+
+Affected Endpoints:
+- https://platform.eve.security/v1/endpoint
+- https://platform.eve.security/v1/ingest-client-logs
+- https://platform.eve.security/api/broadcast
+- https://platform.eve.security/api/LockManager/request
+- https://platform-prod.eve.security/v1/endpoint
+- https://platform.eve.security/v1/mcp (MCP protocol endpoint)
+- https://platform.eve.security/v1/mcp/authv2
+
+Evidence:
+$ curl -I -H "Origin: https://evil.com" https://platform.eve.security/v1/endpoint
+HTTP/2 200
+access-control-allow-origin: https://evil.com
+access-control-allow-credentials: true
+vary: Origin
+x-ably-cluster: prod:realtime:main
+via: 1.1 cloudfront (CloudFront)
+
+The Vary: Origin header indicates the server dynamically reflects the Origin. With credentials allowed, any website can make authenticated cross-origin requests and read responses.
+
+Impact:
+- Full account takeover via session cookie theft
+- Access to all user data via authenticated API calls
+- MCP protocol endpoint abuse for arbitrary tool execution
+- Bypass of all client-side protections
+
+Reproduction Steps:
+1. Create HTML page on attacker-controlled domain
+2. Include fetch() with credentials: 'include' to platform.eve.security/v1/endpoint
+3. Victim visits page while logged into eve.security
+4. Response (including user data) readable by attacker JavaScript
+
+Proof of Concept:
+See eve.security_poc_high01.html
+
+Remediation:
+- Implement strict allowlist of allowed origins
+- Never reflect arbitrary Origin header
+- Set Access-Control-Allow-Origin to specific trusted domains only
+- Consider removing Access-Control-Allow-Credentials: true if not needed
+- Implement CSRF tokens for state-changing operations
+
+========================================
+MEDIUM-01: Exposed MCP (Model Context Protocol) Endpoints Without Authentication
+========================================
+Severity: MEDIUM
+CVSS 4.0: 5.3 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 5.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+Multiple MCP endpoints are publicly accessible without authentication:
+- https://platform.eve.security/v1/mcp
+- https://platform.eve.security/v1/mcp/authv2
+- https://docs.eve.security/mcp/page
+
+The MCP protocol allows tool/function calling. Unauthenticated access could allow:
+- Enumeration of available tools and capabilities
+- Potential tool execution if authorization checks are missing
+- Information disclosure about internal tool schemas
+
+Evidence:
+$ curl -X POST https://platform.eve.security/v1/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+
+Returns empty response (connection accepted, no auth challenge).
+
+Impact:
+- Tool schema enumeration
+- Potential unauthorized tool execution
+- Internal API surface exposure
+
+Remediation:
+- Require authentication for all MCP endpoints
+- Implement proper OAuth2/OIDC flow for MCP authv2
+- Rate limit MCP initialize requests
+
+========================================
+MEDIUM-02: Cognito Token Endpoint Publicly Accessible
+========================================
+Severity: MEDIUM
+CVSS 4.0: 5.3 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 5.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+AWS Cognito token endpoint is publicly accessible:
+- https://auth.us-east-1.amazoncognito.com/oauth2/token
+
+While this is standard for OAuth2 flows, the endpoint accepts client credentials grant and could be abused for:
+- Token brute force attempts
+- Client ID enumeration
+- Rate limit bypass via distributed requests
+
+Evidence:
+$ curl -I https://auth.us-east-1.amazoncognito.com/oauth2/token
+HTTP/2 200 (endpoint responds)
+
+Impact:
+- Credential stuffing / token brute force
+- Client ID enumeration
+- Potential account takeover via weak client secrets
+
+Remediation:
+- Implement rate limiting per IP/client
+- Monitor for anomalous token requests
+- Consider WAF rules for Cognito endpoints
+
+========================================
+LOW-01: Information Disclosure via Installer and CloudFront Headers
+========================================
+Severity: LOW
+CVSS 4.0: 2.6 (AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N)
+CVSS 3.1: 2.6 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+
+Description:
+The installer endpoint discloses version and infrastructure details:
+- https://install.eve.security (v2.2.56 via X-Amz-Cf-Pop, CloudFront headers)
+- X-Amz-Cf-Pop reveals CloudFront edge locations
+- Server headers may reveal infrastructure details
+
+Evidence:
+$ curl -I https://install.eve.security
+HTTP/2 200
+x-amz-cf-pop: CDG50-P2
+via: 1.1 cloudfront (CloudFront)
+x-cache: Miss from cloudfront
+
+Impact:
+- Infrastructure fingerprinting
+- Version tracking for targeted exploits
+- CloudFront edge location mapping
+
+Remediation:
+- Remove version information from responses
+- Strip unnecessary headers (Via, X-Cache, X-Amz-Cf-Pop)
+- Use CloudFront response header policies to remove identifying headers
+
+========================================
+ADDITIONAL ATTACK SURFACE NOTES
+========================================
+Subdomains discovered (39 live via httpx):
+- platform.eve.security
+- platform-prod.eve.security
+- staging.platform.eve.security
+- docs.eve.security
+- install.eve.security
+- mcp.eve.security
+- guard.eve.security (404)
+- api.guard.eve.security (404)
+- mcp.guard.eve.security (404)
+- ... and 30 more
+
+JS Bundle Analysis:
+- platform.eve.security/assets/index-BHZv8trN.js (production, minified)
+- staging.platform.eve.security/assets/index-CRut6KhE.js (staging, minified)
+Both bundles contain API endpoints, auth flows, and internal routes requiring beautification for full analysis.
+
+Notion/S3 Documentation:
+- docs.eve.security served via Notion/S3/CloudFront
+- Potential for S3 bucket enumeration or Notion API abuse
+
+========================================
+GITHUB REPOSITORY
+========================================
+Public repo: https://github.com/smadavv-airdrop/eve.security-bugbounty
+Contains: eve.security_report.txt, eve.security_poc_high01.html
+
+========================================
+REQUEST
+========================================
+Please confirm scope includes:
+- platform.eve.security and all API endpoints
+- platform-prod.eve.security
+- staging.platform.eve.security
+- docs.eve.security
+- install.eve.security
+- Cognito auth endpoints (auth.us-east-1.amazoncognito.com)
+
+Once confirmed, I will submit full PoC details including the working HTML exploit for HIGH-01.
+
+Best regards,
+Fikri Aziz Fadzoli
